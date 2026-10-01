@@ -1,5 +1,5 @@
 import { ACHIEVEMENTS } from '../constants/garden'
-import { daysBetween, monthOf, todayISO } from '../utils/date'
+import { daysBetween, monthOf, shiftISODate, todayISO } from '../utils/date'
 
 export function createId(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -106,17 +106,18 @@ export function calculateAchievements(plants, careRecords, growthRecords, pestRe
 }
 
 export function updateWateringGoal(goals, careRecords) {
-  const wateringDates = [...new Set(careRecords.filter((record) => record.type === '浇水').map((record) => record.date))]
-    .sort()
-    .reverse()
-  const streak = countCurrentStreak(wateringDates)
+  const wateringDates = careRecords.filter((record) => record.type === '浇水').map((record) => record.date)
+  const streakInfo = getWateringStreak(wateringDates)
 
   return goals.map((goal) => {
     if (goal.id !== 'goal-30-watering') return goal
     return {
       ...goal,
-      progressDays: Math.min(streak, goal.targetDays),
-      completed: streak >= goal.targetDays,
+      progressDays: Math.min(streakInfo.streak, goal.targetDays),
+      // 30 天达标只认真实连续记录：必须累计满 targetDays 个有浇水的日子，
+      // “今天还没浇”的宽限状态只用于展示，不会提前判定完成。
+      completed: streakInfo.streak >= goal.targetDays,
+      streak: streakInfo,
     }
   })
 }
@@ -153,19 +154,72 @@ function calculateAverageCareScore(plants, careRecords, growthRecords) {
   return Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length)
 }
 
-function countCurrentStreak(descDates) {
-  let cursor = todayISO()
+/**
+ * 计算当前连续浇水进度。
+ *
+ * 口径：连续链以“今天”或“昨天”为起点——今天还没浇水但昨天有记录时，
+ * 仍保留截至昨天的连续天数（waitingToday=true，仅展示用，今天浇上即续上）；
+ * 昨天也没有记录则视为中断，进度清零。补录的未来日期不参与计算。
+ *
+ * @param {string[]} wateringDates 全部浇水记录的日期（允许重复、乱序）
+ * @param {string} [today] 注入当天日期，便于测试
+ * @returns {{
+ *   streak: number,
+ *   startDate: string,
+ *   lastDate: string,
+ *   recordedToday: boolean,
+ *   waitingToday: boolean,
+ *   crossMonth: boolean,
+ *   gapDate: string,
+ * }}
+ */
+export function getWateringStreak(wateringDates, today = todayISO()) {
+  // 补录误选未来日期会被算成“今天已浇”，这里统一剔除，保证判定边界不被污染。
+  const dates = new Set(wateringDates.filter((date) => date && date <= today))
+  const yesterday = shiftISODate(today, -1)
+
+  const empty = {
+    streak: 0,
+    startDate: '',
+    lastDate: '',
+    recordedToday: false,
+    waitingToday: false,
+    crossMonth: false,
+    gapDate: '',
+  }
+  if (!dates.size) return empty
+
+  const recordedToday = dates.has(today)
+  const waitingToday = !recordedToday && dates.has(yesterday)
+  // 昨天也没记录即已中断；起点之前更早的记录不能续接当前进度。
+  if (!recordedToday && !waitingToday) {
+    const latest = [...dates].sort().at(-1) || ''
+    // 断档恰好只有昨天一天时，补录昨天还能把链条接上，提示用户。
+    const canBackfill = latest === shiftISODate(today, -2)
+    return { ...empty, lastDate: latest, gapDate: canBackfill ? yesterday : '' }
+  }
+
+  let cursor = recordedToday ? today : yesterday
+  const lastDate = cursor
   let streak = 0
-  const dates = new Set(descDates)
 
   while (dates.has(cursor)) {
     streak += 1
-    const date = new Date(`${cursor}T00:00:00`)
-    date.setDate(date.getDate() - 1)
-    cursor = date.toISOString().slice(0, 10)
+    cursor = shiftISODate(cursor, -1)
   }
 
-  return streak
+  // cursor 停在链条起点的前一天，起点再往回一天
+  const startDate = shiftISODate(cursor, 1)
+
+  return {
+    streak,
+    startDate,
+    lastDate,
+    recordedToday,
+    waitingToday,
+    crossMonth: startDate.slice(0, 7) !== lastDate.slice(0, 7),
+    gapDate: '',
+  }
 }
 
 function statusWeight(status) {

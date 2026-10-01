@@ -84,11 +84,11 @@ function handlePhoto(event) {
     </label>
     <label>
       购买日期
-      <input v-model="form.purchaseDate" type="date" />
+      <input v-model="form.purchaseDate" :max="todayISO" type="date" />
     </label>
     <label>
       上次浇水
-      <input v-model="form.lastWateredDate" type="date" />
+      <input v-model="form.lastWateredDate" :max="todayISO" type="date" />
     </label>
     <label>
       花盆尺寸

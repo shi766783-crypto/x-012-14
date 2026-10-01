@@ -67,13 +67,14 @@ function handlePhoto(event) {
         <option value="">选择植物</option>
         <option v-for="plant in plants" :key="plant.id" :value="plant.id">{{ plant.name }}</option>
       </select>
-      <input v-model="care.date" type="date" />
+      <input v-model="care.date" :max="todayISO" type="date" />
       <select v-model="care.type">
         <option v-for="item in CARE_TYPES" :key="item">{{ item }}</option>
       </select>
       <input v-model="care.amount" placeholder="用量或备注" />
       <textarea v-model="care.note" rows="3" placeholder="养护细节"></textarea>
       <input accept="image/*" type="file" @change="handlePhoto" />
+      <p class="form-hint">支持补录过去日期：昨天的浇水今天补记仍算连续；断档超过一天需逐日补齐，未来日期不计入连续进度。</p>
       <button class="secondary-action" type="submit">记录养护</button>
     </form>
 
@@ -85,7 +86,7 @@ function handlePhoto(event) {
         <option value="">选择植物</option>
         <option v-for="plant in plants" :key="plant.id" :value="plant.id">{{ plant.name }}</option>
       </select>
-      <input v-model="growth.date" type="date" />
+      <input v-model="growth.date" :max="todayISO" type="date" />
       <input v-model.number="growth.height" min="0" type="number" placeholder="高度 cm" />
       <input v-model.number="growth.leafCount" min="0" type="number" placeholder="叶片数" />
       <select v-model="growth.bloomState">
@@ -102,7 +103,7 @@ function handlePhoto(event) {
         <option value="">选择植物</option>
         <option v-for="plant in plants" :key="plant.id" :value="plant.id">{{ plant.name }}</option>
       </select>
-      <input v-model="pest.date" type="date" />
+      <input v-model="pest.date" :max="todayISO" type="date" />
       <textarea v-model="pest.symptom" required rows="3" placeholder="症状"></textarea>
       <textarea v-model="pest.treatment" rows="3" placeholder="处理方法"></textarea>
       <textarea v-model="pest.recovery" rows="3" placeholder="恢复情况"></textarea>
