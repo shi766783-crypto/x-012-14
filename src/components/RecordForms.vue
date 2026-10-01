@@ -12,7 +12,8 @@ const props = defineProps({
 const emit = defineEmits(['care', 'growth', 'pest'])
 
 const firstPlantId = computed(() => props.plants[0]?.id || '')
-const care = reactive({ plantId: '', date: todayISO(), type: '浇水', amount: '', note: '', photo: '' })
+const today = todayISO()
+const care = reactive({ plantId: '', date: today, type: '浇水', amount: '', note: '', photo: '' })
 const growth = reactive({ plantId: '', date: todayISO(), height: 0, leafCount: 0, bloomState: '未开花' })
 const pest = reactive({ plantId: '', date: todayISO(), symptom: '', treatment: '', recovery: '' })
 
@@ -67,7 +68,7 @@ function handlePhoto(event) {
         <option value="">选择植物</option>
         <option v-for="plant in plants" :key="plant.id" :value="plant.id">{{ plant.name }}</option>
       </select>
-      <input v-model="care.date" type="date" />
+      <input v-model="care.date" :max="today" type="date" />
       <select v-model="care.type">
         <option v-for="item in CARE_TYPES" :key="item">{{ item }}</option>
       </select>
@@ -85,7 +86,7 @@ function handlePhoto(event) {
         <option value="">选择植物</option>
         <option v-for="plant in plants" :key="plant.id" :value="plant.id">{{ plant.name }}</option>
       </select>
-      <input v-model="growth.date" type="date" />
+      <input v-model="growth.date" :max="today" type="date" />
       <input v-model.number="growth.height" min="0" type="number" placeholder="高度 cm" />
       <input v-model.number="growth.leafCount" min="0" type="number" placeholder="叶片数" />
       <select v-model="growth.bloomState">
@@ -102,7 +103,7 @@ function handlePhoto(event) {
         <option value="">选择植物</option>
         <option v-for="plant in plants" :key="plant.id" :value="plant.id">{{ plant.name }}</option>
       </select>
-      <input v-model="pest.date" type="date" />
+      <input v-model="pest.date" :max="today" type="date" />
       <textarea v-model="pest.symptom" required rows="3" placeholder="症状"></textarea>
       <textarea v-model="pest.treatment" rows="3" placeholder="处理方法"></textarea>
       <textarea v-model="pest.recovery" rows="3" placeholder="恢复情况"></textarea>

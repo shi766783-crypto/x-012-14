@@ -330,8 +330,77 @@ dd {
   margin-bottom: 18px;
 }
 
+.goal-row {
+  align-items: flex-start;
+}
+
+.goal-info {
+  min-width: 0;
+}
+
+.goal-info p {
+  margin: 6px 0 0;
+}
+
+.goal-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+}
+
+.streak-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.streak-tag--today,
+.streak-tag--completed {
+  color: #23613d;
+  background: #dff0e4;
+}
+
+.streak-tag--pending {
+  color: #8b5418;
+  background: #fde8bd;
+}
+
+.streak-tag--broken {
+  color: #9f372f;
+  background: #f8d3ce;
+}
+
+.streak-tag--empty {
+  color: #5c6b5e;
+  background: #e9efe2;
+}
+
+.goal-range {
+  font-size: 0.82rem;
+  color: #7a856f;
+}
+
+.cross-month {
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  color: #6c4a12;
+  background: #f3e3bd;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
 .goal-row progress {
+  flex: 0 0 auto;
   width: min(260px, 44vw);
+  margin-top: 6px;
   height: 12px;
   accent-color: #2f7d4f;
 }

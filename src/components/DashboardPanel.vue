@@ -13,6 +13,21 @@ defineProps({
     required: true,
   },
 })
+
+function streakStateLabel(state, completed) {
+  if (completed) return '已达标'
+  return {
+    today: '今日已浇',
+    pending: '今日待补记',
+    broken: '已断签',
+    empty: '未开始',
+  }[state] || '未开始'
+}
+
+function formatRange(start, end) {
+  const fmt = (iso) => iso.replaceAll('-', '/')
+  return start === end ? fmt(end) : `${fmt(start)} ~ ${fmt(end)}`
+}
 </script>
 
 <template>
@@ -49,9 +64,19 @@ defineProps({
       <span>{{ achievements.earned.length }} / 12 枚徽章</span>
     </div>
     <div v-for="goal in goals" :key="goal.id" class="goal-row">
-      <div>
+      <div class="goal-info">
         <strong>{{ goal.title }}</strong>
         <p>{{ goal.progressDays }} / {{ goal.targetDays }} 天</p>
+        <p v-if="goal.streakHint" class="goal-hint">
+          <span :class="['streak-tag', goal.completed ? 'streak-tag--completed' : `streak-tag--${goal.streakState || 'empty'}`]">
+            {{ streakStateLabel(goal.streakState, goal.completed) }}
+          </span>
+          {{ goal.streakHint }}
+        </p>
+        <p v-if="goal.streakStartDate && goal.streak > 0" class="goal-range">
+          连续区间 {{ formatRange(goal.streakStartDate, goal.streakEndDate) }}
+          <span v-if="goal.crossesMonth" class="cross-month">跨月</span>
+        </p>
       </div>
       <progress :max="goal.targetDays" :value="goal.progressDays"></progress>
     </div>

@@ -17,6 +17,14 @@ export function daysBetween(startISO, endISO = todayISO()) {
   return Math.floor((end - start) / DAY_MS)
 }
 
+// 按本地时区平移日期，避免 toISOString 的 UTC 口径在东八区把日期多退一天。
+export function shiftDateISO(dateISO, offsetDays) {
+  if (!dateISO) return ''
+  const date = new Date(`${dateISO}T00:00:00`)
+  date.setDate(date.getDate() + offsetDays)
+  return toISODate(date)
+}
+
 export function monthOf(dateISO) {
   return dateISO?.slice(0, 7) || ''
 }

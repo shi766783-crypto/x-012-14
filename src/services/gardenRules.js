@@ -1,5 +1,5 @@
 import { ACHIEVEMENTS } from '../constants/garden'
-import { daysBetween, monthOf, todayISO } from '../utils/date'
+import { daysBetween, formatDate, monthOf, shiftDateISO, todayISO } from '../utils/date'
 
 export function createId(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -91,7 +91,8 @@ export function calculateAchievements(plants, careRecords, growthRecords, pestRe
   if (bloomingPlants >= 3) earnedIds.add('bloom-garden')
   if (growthRecords.length >= 10) earnedIds.add('growth-watcher')
   if (pestRecords.length >= 3) earnedIds.add('plant-doctor')
-  if (goals.some((goal) => goal.completed || goal.progressDays >= goal.targetDays)) earnedIds.add('thirty-day-goal')
+  // 30 天徽章以目标 completed 为准：必须含今天在内连续达标，宽限展示的进度不会提前点亮徽章。
+  if (goals.some((goal) => goal.id === 'goal-30-watering' && goal.completed)) earnedIds.add('thirty-day-goal')
 
   const provisionalPoints = ACHIEVEMENTS.filter((item) => earnedIds.has(item.id)).reduce(
     (sum, item) => sum + item.points,
@@ -106,17 +107,22 @@ export function calculateAchievements(plants, careRecords, growthRecords, pestRe
 }
 
 export function updateWateringGoal(goals, careRecords) {
-  const wateringDates = [...new Set(careRecords.filter((record) => record.type === '浇水').map((record) => record.date))]
-    .sort()
-    .reverse()
-  const streak = countCurrentStreak(wateringDates)
+  const summary = getWateringStreakSummary(careRecords)
 
   return goals.map((goal) => {
     if (goal.id !== 'goal-30-watering') return goal
+    // 30 天达标只认“含今天在内的连续记录”：今天没浇水则进度仍可读但不判定达标。
+    // 一旦达标即锁定，之后断签不再收回徽章，只在提示中展示当前实际连续情况。
+    const completed = goal.completed === true || (summary.recordedToday && summary.streak >= goal.targetDays)
     return {
       ...goal,
-      progressDays: Math.min(streak, goal.targetDays),
-      completed: streak >= goal.targetDays,
+      streak: summary.streak,
+      progressDays: completed ? goal.targetDays : Math.min(summary.streak, goal.targetDays),
+      completed,
+      streakState: summary.state,
+      streakStartDate: summary.startDate,
+      streakEndDate: summary.endDate,
+      streakHint: buildStreakHint(summary, goal.targetDays, completed),
     }
   })
 }
@@ -153,19 +159,88 @@ function calculateAverageCareScore(plants, careRecords, growthRecords) {
   return Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length)
 }
 
-function countCurrentStreak(descDates) {
-  let cursor = todayISO()
-  let streak = 0
-  const dates = new Set(descDates)
+// 连续浇水进度口径：
+// - today   今天已记录：从今天往回连续计数；
+// - pending 今天未记录但昨天有记录（含补录）：保留昨天为止的连续进度，不清零，提示今天补记；
+// - broken  最近记录已断签两天及以上：连续中断，展示上一段连续区间便于用户交代去向；
+// - empty   从未有过浇水记录：明确提示起点，不显示 0 天这样的“无故归零”。
+// 未来日期的补录不计入（以今天为锚点）。
+export function getWateringStreakSummary(careRecords, today = todayISO()) {
+  const yesterday = shiftDateISO(today, -1)
+  const dates = new Set(
+    careRecords
+      .filter((record) => record.type === '浇水' && record.date && record.date <= today)
+      .map((record) => record.date),
+  )
 
-  while (dates.has(cursor)) {
-    streak += 1
-    const date = new Date(`${cursor}T00:00:00`)
-    date.setDate(date.getDate() - 1)
-    cursor = date.toISOString().slice(0, 10)
+  if (dates.size === 0) {
+    return { streak: 0, state: 'empty', startDate: '', endDate: '', recordedToday: false }
   }
 
-  return streak
+  const recordedToday = dates.has(today)
+  let state
+  let anchor
+  if (recordedToday) {
+    state = 'today'
+    anchor = today
+  } else if (dates.has(yesterday)) {
+    state = 'pending'
+    anchor = yesterday
+  } else {
+    state = 'broken'
+    anchor = [...dates].sort().reverse().find((date) => date <= yesterday)
+  }
+
+  let endDate = anchor
+  let cursor = anchor
+  let streak = 0
+  while (cursor && dates.has(cursor)) {
+    endDate = cursor
+    streak += 1
+    cursor = shiftDateISO(cursor, -1)
+  }
+
+  return {
+    streak,
+    state,
+    startDate: endDate,
+    endDate: anchor,
+    recordedToday,
+    // today/pending：连续起点与今天是否跨月；broken：展示的上一段区间自身是否跨月。
+    crossesMonth:
+      state === 'broken'
+        ? monthOf(endDate) !== monthOf(anchor)
+        : monthOf(endDate) !== monthOf(today),
+  }
+}
+
+function buildStreakHint(summary, targetDays, completed) {
+  if (completed) {
+    return summary.recordedToday
+      ? `已连续浇水 ${summary.streak} 天，达成 ${targetDays} 天目标。`
+      : `已达成 ${targetDays} 天目标；今天还没浇水，记录后继续延续连续进度。`
+  }
+  switch (summary.state) {
+    case 'empty':
+      return '还没有浇水记录，今天记下第一次浇水即可开启连续进度。'
+    case 'pending':
+      if (summary.streak >= targetDays) {
+        return `已连续 ${summary.streak} 天（至昨天），今天补记浇水即可点亮 ${targetDays} 天徽章。`
+      }
+      return `今天还没浇水，已保留截至昨天的连续 ${summary.streak} 天，今天补记即可延续。`
+    case 'broken': {
+      const range =
+        summary.startDate === summary.endDate
+          ? formatDate(summary.endDate)
+          : `${formatDate(summary.startDate)} 至 ${formatDate(summary.endDate)}`
+      return `连续进度已中断，上一段连续 ${summary.streak} 天（${range}），今天浇水重新开始计数。`
+    }
+    default:
+      if (summary.streak >= targetDays) {
+        return `已连续 ${summary.streak} 天，达成 ${targetDays} 天目标。`
+      }
+      return `已连续浇水 ${summary.streak} 天，再坚持 ${targetDays - summary.streak} 天达成 ${targetDays} 天目标。`
+  }
 }
 
 function statusWeight(status) {

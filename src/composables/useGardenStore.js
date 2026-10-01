@@ -136,7 +136,10 @@ export function useGardenStore() {
 
     if (record.type === '浇水') {
       const plant = state.plants.find((item) => item.id === record.plantId)
-      if (plant) plant.lastWateredDate = record.date
+      // 仅当记录日期不早于现有最近浇水时间时才回写，避免补录历史记录把植物状态打回过期。
+      if (plant && (!plant.lastWateredDate || record.date >= plant.lastWateredDate)) {
+        plant.lastWateredDate = record.date
+      }
     }
   }
 
